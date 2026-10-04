@@ -39,13 +39,13 @@ jobs:
     steps:
       - name: Secretlarni tekshirish
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
           missing=""
-          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY BOT_TOKEN; do
+          for name in SERVER_HOST SERVER_USER SSH_KEY BOT_TOKEN; do
             [ -z "${!name}" ] && missing="$missing $name"
           done
           if [ -n "$missing" ]; then
