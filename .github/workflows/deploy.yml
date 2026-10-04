@@ -1,0 +1,79 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodni olish
+        uses: actions/checkout@v4
+
+      - name: Node.js o'rnatish
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Paketlarni o'rnatish
+        run: npm ci
+
+      - name: Testlar
+        run: npm test
+        env:
+          TZ_NAME: Asia/Tashkent
+
+  deploy:
+    name: Serverga deploy
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: SSH orqali deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script_stop: true
+          envs: BOT_TOKEN,MONGO_URI,TZ_NAME,APP_DIR,REPO_URL
+          script: |
+            set -e
+            # Birinchi marta: repozitoriyni klonlash
+            if [ ! -d "$APP_DIR/.git" ]; then
+              git clone "$REPO_URL" "$APP_DIR"
+            fi
+            cd "$APP_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+
+            # .env faylini GitHub Secrets'dan yaratish
+            cat > .env <<EOF
+            BOT_TOKEN=$BOT_TOKEN
+            MONGO_URI=$MONGO_URI
+            TZ_NAME=$TZ_NAME
+            EOF
+            sed -i 's/^[[:space:]]*//' .env
+            chmod 600 .env
+
+            npm ci --omit=dev
+
+            # PM2 bilan qayta ishga tushirish
+            command -v pm2 >/dev/null 2>&1 || npm install -g pm2
+            pm2 restart task_bot --update-env || pm2 start index.js --name task_bot
+            pm2 save
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          TZ_NAME: ${{ vars.TZ_NAME || 'Asia/Tashkent' }}
+          APP_DIR: ${{ vars.APP_DIR || '/opt/task_bot' }}
+          REPO_URL: https://github.com/${{ github.repository }}.git
