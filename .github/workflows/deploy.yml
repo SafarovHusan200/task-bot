@@ -37,13 +37,29 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Secretlarni tekshirish
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          missing=""
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY BOT_TOKEN; do
+            [ -z "${!name}" ] && missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Quyidagi secretlar topilmadi:$missing. Settings → Secrets and variables → Actions → Secrets (Repository secrets yoki 'production' environment) ga qo'shing."
+            exit 1
+          fi
+
       - name: SSH orqali deploy
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
           script_stop: true
           envs: BOT_TOKEN,TZ_NAME,APP_DIR,REPO_URL
           script: |
