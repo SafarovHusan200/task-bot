@@ -75,7 +75,7 @@ function taskKeyboard(task) {
 
 // Bugungi ro'yxatni yuboradi: har bir vazifa alohida xabar (tugmalar shu xabarga bog'lanadi)
 async function sendTaskList(bot, chatId, { header } = {}) {
-  const tasks = await Task.forToday(chatId);
+  const tasks = Task.forToday(chatId);
 
   if (header) await bot.sendMessage(chatId, header, HTML);
 
@@ -96,11 +96,10 @@ async function sendTaskList(bot, chatId, { header } = {}) {
 async function ensureUser(msg) {
   const chatId = String(msg.chat.id);
   const from = msg.from || {};
-  return User.findOneAndUpdate(
-    { chatId },
-    { $set: { firstName: from.first_name || '', username: from.username || '' } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+  return User.upsert(chatId, {
+    firstName: from.first_name || '',
+    username: from.username || '',
+  });
 }
 
 async function createTask(chatId, { time, text, repeat }) {
@@ -231,7 +230,7 @@ function register(bot) {
       }
       user.dailyTime = normalizeTime(arg);
       user.dailyNotifiedOn = ''; // yangi vaqt uchun bugun qayta yuborilishi mumkin
-      await user.save();
+      await User.save(user);
       await bot.sendMessage(
         chatId,
         `⏰ Kunlik ro‘yxat endi har kuni soat <b>${esc(user.dailyTime)}</b> da keladi.`,
@@ -246,16 +245,10 @@ function register(bot) {
     try {
       const chatId = String(msg.chat.id);
       await ensureUser(msg);
-      const today = todayKey();
-      const res = await Task.deleteMany({
-        chatId,
-        repeat: 'once',
-        date: { $lt: today },
-        'doneDates.0': { $exists: true },
-      });
+      const deleted = await Task.deleteOldDone(chatId, todayKey());
       await bot.sendMessage(
         chatId,
-        `🧹 Tozalandi. O‘chirilgan vazifalar: <b>${res.deletedCount || 0}</b>`,
+        `🧹 Tozalandi. O‘chirilgan vazifalar: <b>${deleted}</b>`,
         HTML
       );
     } catch (err) {
@@ -267,7 +260,7 @@ function register(bot) {
     try {
       const user = await ensureUser(msg);
       user.active = false;
-      await user.save();
+      await User.save(user);
       await bot.sendMessage(
         msg.chat.id,
         '⏸ Eslatmalar to‘xtatildi. Qayta yoqish uchun /davom yuboring.',
@@ -282,7 +275,7 @@ function register(bot) {
     try {
       const user = await ensureUser(msg);
       user.active = true;
-      await user.save();
+      await User.save(user);
       await bot.sendMessage(msg.chat.id, '▶️ Eslatmalar qayta yoqildi.', HTML);
     } catch (err) {
       console.error('/davom xatosi:', err.message);
@@ -321,7 +314,7 @@ async function handleCallback(bot, query) {
     const messageId = message.message_id;
     const [action, taskId] = String(query.data || '').split(':');
 
-    const task = await Task.findOne({ _id: taskId, chatId });
+    const task = Task.findOne(taskId, chatId);
     if (!task) {
       await bot.answerCallbackQuery(query.id, { text: 'Vazifa topilmadi' });
       try {
@@ -340,7 +333,7 @@ async function handleCallback(bot, query) {
       const today = todayKey();
       if (!task.doneDates.includes(today)) {
         task.doneDates.push(today);
-        await task.save();
+        await Task.save(task);
       }
       await bot.answerCallbackQuery(query.id, { text: 'Bajarildi ✅' });
       // Eski xabarni yangilaymiz, tugmalar olib tashlanadi (reply_markup berilmadi)
@@ -353,7 +346,7 @@ async function handleCallback(bot, query) {
     }
 
     if (action === 'del') {
-      await Task.deleteOne({ _id: task._id });
+      await Task.deleteById(task._id);
       await bot.answerCallbackQuery(query.id, { text: 'O‘chirildi 🗑' });
       await bot.editMessageText(`🗑 <s>${esc(task.text)}</s>`, {
         chat_id: chatId,

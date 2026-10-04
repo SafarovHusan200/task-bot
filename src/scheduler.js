@@ -6,7 +6,7 @@ const { sendTaskList, taskLine, taskKeyboard } = require('./handlers');
 
 // Vaqtli vazifa uchun eslatma yuborilsinmi?
 // Bir kunda ikki marta yubormaslik uchun notifiedOn (oxirgi eslatma sanasi) tekshiriladi.
-// Bot qayta ishga tushsa ham notifiedOn bazada saqlanib qolgani uchun takror ketmaydi.
+// Bot qayta ishga tushsa ham notifiedOn faylda saqlanib qolgani uchun takror ketmaydi.
 function shouldNotifyTimed(task, today) {
   if (task.notifiedOn === today) return false;
   const doneDates = task.doneDates || [];
@@ -25,7 +25,7 @@ async function tick(bot) {
   const today = todayKey();
   const hhmm = currentHHmm();
 
-  const users = await User.find({ active: true });
+  const users = User.findActive();
 
   for (const user of users) {
     try {
@@ -33,11 +33,11 @@ async function tick(bot) {
       if (shouldSendDailyList(user, hhmm, today)) {
         await sendTaskList(bot, user.chatId, { header: '🗓 <b>Bugungi vazifalar</b>' });
         user.dailyNotifiedOn = today;
-        await user.save();
+        await User.save(user);
       }
 
       // 2) Vaqti ko'rsatilgan vazifalar — o'z vaqtida alohida eslatma
-      const timed = await Task.find({ chatId: user.chatId, time: hhmm });
+      const timed = Task.findTimed(user.chatId, hhmm);
       for (const task of timed) {
         try {
           if (!shouldNotifyTimed(task, today)) continue;
@@ -46,7 +46,7 @@ async function tick(bot) {
             reply_markup: taskKeyboard(task),
           });
           task.notifiedOn = today;
-          await task.save();
+          await Task.save(task);
         } catch (err) {
           // Bitta vazifadagi xato boshqalarini to'xtatmasin
           console.error(`Eslatma xatosi (chatId=${user.chatId}, task=${task._id}):`, err.message);

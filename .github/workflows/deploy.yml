@@ -45,7 +45,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script_stop: true
-          envs: BOT_TOKEN,MONGO_URI,TZ_NAME,APP_DIR,REPO_URL
+          envs: BOT_TOKEN,TZ_NAME,APP_DIR,REPO_URL
           script: |
             set -e
             # Birinchi marta: repozitoriyni klonlash
@@ -56,10 +56,11 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # .env faylini GitHub Secrets'dan yaratish
+            # .env faylini GitHub Secrets'dan yaratish.
+            # Ma'lumotlar data/db.json da saqlanadi (.gitignore da, deploy paytida o'chmaydi).
             cat > .env <<EOF
             BOT_TOKEN=$BOT_TOKEN
-            MONGO_URI=$MONGO_URI
+            DATA_FILE=$APP_DIR/data/db.json
             TZ_NAME=$TZ_NAME
             EOF
             sed -i 's/^[[:space:]]*//' .env
@@ -69,11 +70,10 @@ jobs:
 
             # PM2 bilan qayta ishga tushirish
             command -v pm2 >/dev/null 2>&1 || npm install -g pm2
-            pm2 restart task_bot --update-env || pm2 start index.js --name task_bot
+            pm2 restart vazifa-bot --update-env || pm2 start index.js --name vazifa-bot
             pm2 save
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          MONGO_URI: ${{ secrets.MONGO_URI }}
           TZ_NAME: ${{ vars.TZ_NAME || 'Asia/Tashkent' }}
           APP_DIR: ${{ vars.APP_DIR || '/opt/task_bot' }}
           REPO_URL: https://github.com/${{ github.repository }}.git

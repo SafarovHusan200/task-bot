@@ -5,10 +5,11 @@ const connectDB = require('./src/config/db');
 const handlers = require('./src/handlers');
 const scheduler = require('./src/scheduler');
 
-const { BOT_TOKEN, MONGO_URI } = process.env;
+const { BOT_TOKEN } = process.env;
+const DATA_FILE = process.env.DATA_FILE || 'data/db.json';
 
-if (!BOT_TOKEN || !MONGO_URI) {
-  console.error('❌ .env da BOT_TOKEN va MONGO_URI ko‘rsatilishi shart. .env.example dan nusxa oling.');
+if (!BOT_TOKEN) {
+  console.error('❌ .env da BOT_TOKEN ko‘rsatilishi shart. .env.example dan nusxa oling.');
   process.exit(1);
 }
 
@@ -18,7 +19,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 async function main() {
-  await connectDB(MONGO_URI);
+  await connectDB(DATA_FILE);
 
   const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 

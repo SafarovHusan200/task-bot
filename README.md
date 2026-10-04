@@ -2,7 +2,7 @@
 
 Foydalanuvchining kunlik vazifalarini saqlaydi va belgilangan vaqtda eslatib turadi.
 
-- **Stack:** Node.js (CommonJS), `node-telegram-bot-api` (polling), MongoDB + Mongoose,
+- **Stack:** Node.js (CommonJS), `node-telegram-bot-api` (polling), JSON fayl (bazasiz),
   `node-cron`, `dayjs` (utc/timezone), `dotenv`
 - **Vaqt zonasi:** barcha hisob-kitoblar `Asia/Tashkent` (yoki `.env` dagi `TZ_NAME`) bo‘yicha,
   server UTC bo‘lsa ham eslatmalar to‘g‘ri vaqtda keladi.
@@ -17,15 +17,20 @@ npm install
 cp .env.example .env
 #   .env ni to‘ldiring:
 #   BOT_TOKEN  — @BotFather dan
-#   MONGO_URI  — masalan mongodb://127.0.0.1:27017/vazifa_bot
+#   DATA_FILE  — ixtiyoriy, standart data/db.json
 #   TZ_NAME    — Asia/Tashkent
 
 # 3. Ishga tushirish
 npm start
 ```
 
-MongoDB local yoki MongoDB Atlas bo‘lishi mumkin. Bot ishga tushganda konsolda
-`✅ MongoDB ulandi` va `🤖 Bot ishga tushdi (polling rejimi)` ko‘rinadi.
+Alohida baza kerak emas: barcha ma’lumotlar `data/db.json` faylida saqlanadi (fayl
+birinchi ishga tushishda o‘zi yaratiladi). Bot ishga tushganda konsolda
+`✅ Ma'lumotlar fayli: ...` va `🤖 Bot ishga tushdi (polling rejimi)` ko‘rinadi.
+
+Ma’lumotlar xotirada turadi va har o‘zgarishdan keyin faylga yoziladi (avval `.tmp`
+faylga, keyin `rename` — yozish paytida bot to‘xtasa ham fayl buzilmaydi). Zaxira
+nusxa olish uchun shu faylni nusxalash kifoya.
 
 ## Buyruqlar
 
@@ -74,19 +79,22 @@ Buyruqsiz oddiy matn yuborilsa ham bugungi vazifa sifatida qo‘shiladi. Matn bo
 
 ## Ma’lumotlar modeli
 
-**User:** `chatId` (unique), `firstName`, `username`, `dailyTime` (default `"09:00"`),
+`data/db.json` tuzilishi: `{ "users": [...], "tasks": [...] }`.
+
+**User:** `chatId` (yagona), `firstName`, `username`, `dailyTime` (default `"09:00"`),
 `active` (default `true`), `dailyNotifiedOn`, timestamps.
 
-**Task:** `chatId`, `text`, `time` (`"HH:mm"` yoki `null`), `repeat` (`"once"` | `"daily"`),
+**Task:** `_id` (16 belgili hex), `chatId`, `text`, `time` (`"HH:mm"` yoki `null`), `repeat` (`"once"` | `"daily"`),
 `date` (`"YYYY-MM-DD"`, faqat `once`), `doneDates` (string massiv), `notifiedOn` (string), timestamps.
 
 ## Fayl tuzilishi
 
 ```
-index.js                 # kirish nuqtasi: bot + DB + scheduler ulanadi
-src/config/db.js         # mongoose ulanishi
+index.js                 # kirish nuqtasi: bot + fayl bazasi + scheduler ulanadi
+src/config/db.js         # JSON fayl bazasi (yuklash va xavfsiz yozish)
 src/models/user.model.js
-src/models/task.model.js  # forToday statik metodi shu yerda
+src/models/task.model.js  # forToday shu yerda
+data/db.json             # ma'lumotlar (git'ga qo'shilmaydi)
 src/utils/time.js        # dayjs helperlari (Asia/Tashkent)
 src/handlers.js          # barcha buyruqlar va callback_query
 src/scheduler.js         # cron logikasi

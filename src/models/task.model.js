@@ -1,25 +1,26 @@
-const { Schema, model } = require('mongoose');
+const crypto = require('crypto');
+const { getData, persist } = require('../config/db');
 const { todayKey } = require('../utils/time');
 
-const taskSchema = new Schema(
-  {
-    chatId: { type: String, required: true, index: true },
-    text: { type: String, required: true },
-    time: { type: String, default: null }, // "HH:mm" yoki null
-    repeat: { type: String, enum: ['once', 'daily'], default: 'once' },
-    date: { type: String, default: null }, // "YYYY-MM-DD", faqat once uchun
-    doneDates: { type: [String], default: [] }, // bajarilgan sanalar
-    notifiedOn: { type: String, default: '' }, // vaqtli eslatma oxirgi yuborilgan sana
-  },
-  { timestamps: true }
-);
+// Vazifa maydonlari:
+//  _id, chatId, text,
+//  time — "HH:mm" yoki null,
+//  repeat — 'once' | 'daily',
+//  date — "YYYY-MM-DD", faqat once uchun,
+//  doneDates — bajarilgan sanalar,
+//  notifiedOn — vaqtli eslatma oxirgi yuborilgan sana
+
+// Qisqa id: callback_data 64 baytdan oshmasligi kerak
+function newId() {
+  return crypto.randomBytes(8).toString('hex');
+}
 
 // Bugun bajarilganmi?
 function isDoneToday(task, today = todayKey()) {
   return (task.doneDates || []).includes(today);
 }
 
-// Toza (DB'siz test qilinadigan) filtr: qaysi vazifalar bugungi ro'yxatga kiradi.
+// Toza (bazasiz test qilinadigan) filtr: qaysi vazifalar bugungi ro'yxatga kiradi.
 //  - barcha daily vazifalar
 //  - sanasi bugungi bo'lgan once vazifalar
 //  - sanasi o'tib ketgan, lekin umuman bajarilmagan once vazifalar (ro'yxatda ⚠️)
@@ -50,17 +51,89 @@ function sortForToday(tasks) {
   });
 }
 
-taskSchema.statics.forToday = async function (chatId) {
-  const tasks = await this.find({ chatId });
-  const today = todayKey();
-  return sortForToday(filterForToday(tasks, today));
+// --- Fayl bazasi bilan ishlash ------------------------------------------------
+
+async function create(fields) {
+  const now = new Date().toISOString();
+  const task = {
+    _id: newId(),
+    chatId: fields.chatId,
+    text: fields.text,
+    time: fields.time || null,
+    repeat: fields.repeat === 'daily' ? 'daily' : 'once',
+    date: fields.date || null,
+    doneDates: fields.doneDates || [],
+    notifiedOn: fields.notifiedOn || '',
+    createdAt: now,
+    updatedAt: now,
+  };
+  getData().tasks.push(task);
+  await persist();
+  return task;
+}
+
+function findByChatId(chatId) {
+  return getData().tasks.filter((t) => t.chatId === chatId);
+}
+
+function findOne(id, chatId) {
+  return getData().tasks.find((t) => t._id === id && t.chatId === chatId) || null;
+}
+
+// Berilgan daqiqadagi vaqtli vazifalar
+function findTimed(chatId, time) {
+  return getData().tasks.filter((t) => t.chatId === chatId && t.time === time);
+}
+
+function forToday(chatId) {
+  return sortForToday(filterForToday(findByChatId(chatId), todayKey()));
+}
+
+async function save(task) {
+  task.updatedAt = new Date().toISOString();
+  await persist();
+  return task;
+}
+
+async function deleteById(id) {
+  const data = getData();
+  const before = data.tasks.length;
+  data.tasks = data.tasks.filter((t) => t._id !== id);
+  const deleted = before - data.tasks.length;
+  if (deleted) await persist();
+  return deleted;
+}
+
+// O'tgan kunlardagi bajarilgan bir martalik vazifalarni o'chiradi, o'chirilganlar sonini qaytaradi
+async function deleteOldDone(chatId, today = todayKey()) {
+  const data = getData();
+  const before = data.tasks.length;
+  data.tasks = data.tasks.filter(
+    (t) =>
+      !(
+        t.chatId === chatId &&
+        t.repeat === 'once' &&
+        t.date &&
+        t.date < today &&
+        (t.doneDates || []).length > 0
+      )
+  );
+  const deleted = before - data.tasks.length;
+  if (deleted) await persist();
+  return deleted;
+}
+
+module.exports = {
+  create,
+  findByChatId,
+  findOne,
+  findTimed,
+  forToday,
+  save,
+  deleteById,
+  deleteOldDone,
+  // Toza yordamchilar (scheduler va testlar uchun)
+  filterForToday,
+  sortForToday,
+  isDoneToday,
 };
-
-const Task = model('Task', taskSchema);
-
-// Toza yordamchilarni ham tashqariga chiqaramiz (scheduler va testlar uchun)
-Task.filterForToday = filterForToday;
-Task.sortForToday = sortForToday;
-Task.isDoneToday = isDoneToday;
-
-module.exports = Task;
