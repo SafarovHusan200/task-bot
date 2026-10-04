@@ -1,0 +1,25 @@
+{
+  "name": "task_bot",
+  "version": "1.0.0",
+  "description": "Telegram vazifa-eslatma boti",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js && node --check src/config/db.js && node --check src/models/user.model.js && node --check src/models/task.model.js && node --check src/utils/time.js && node --check src/handlers.js && node --check src/scheduler.js",
+    "test:parse": "node scripts/check-parse.js",
+    "test:fortoday": "node scripts/check-fortoday.js",
+    "test:notify": "node scripts/check-notify.js",
+    "test": "npm run check && npm run test:parse && npm run test:fortoday && npm run test:notify"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.7",
+    "mongoose": "^8.9.5",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0"
+  }
+}
