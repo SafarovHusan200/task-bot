@@ -13,7 +13,7 @@ function esc(value) {
 const HTML = { parse_mode: 'HTML' };
 
 const WELCOME =
-  'Assalomu alaykum! Men <b>vazifa-eslatma boti</b>man.\n\n' +
+  'Assalomu alaykum, yaxshimisiz? Men <b>vazifa-eslatma boti</b>man.\n\n' +
   'Har kuni belgilangan vaqtda bugungi ro‘yxatni yuboraman, vaqti ko‘rsatilgan ' +
   'vazifalar uchun alohida eslatma beraman.\n\n' +
   'Tez boshlash:\n' +
@@ -51,10 +51,7 @@ function taskLine(task) {
   if (task.repeat === 'daily') prefix += '🔁 ';
   if (task.time) prefix += `⏰ ${task.time} `;
   const overdue =
-    task.repeat === 'once' &&
-    task.date &&
-    task.date < today &&
-    (task.doneDates || []).length === 0;
+    task.repeat === 'once' && task.date && task.date < today && (task.doneDates || []).length === 0;
   if (overdue) prefix += '⚠️ ';
 
   const body = `${prefix}${esc(task.text)}`;
@@ -161,11 +158,7 @@ function register(bot) {
       await ensureUser(msg);
       const raw = (match && match[1]) || '';
       if (!raw.trim()) {
-        await bot.sendMessage(
-          chatId,
-          'Foydalanish: <code>/add [HH:mm] vazifa matni</code>',
-          HTML
-        );
+        await bot.sendMessage(chatId, 'Foydalanish: <code>/add [HH:mm] vazifa matni</code>', HTML);
         return;
       }
       const { time, text } = parseTimePrefix(raw);
@@ -246,11 +239,7 @@ function register(bot) {
       const chatId = String(msg.chat.id);
       await ensureUser(msg);
       const deleted = await Task.deleteOldDone(chatId, todayKey());
-      await bot.sendMessage(
-        chatId,
-        `🧹 Tozalandi. O‘chirilgan vazifalar: <b>${deleted}</b>`,
-        HTML
-      );
+      await bot.sendMessage(chatId, `🧹 Tozalandi. O‘chirilgan vazifalar: <b>${deleted}</b>`, HTML);
     } catch (err) {
       console.error('/tozala xatosi:', err.message);
     }
